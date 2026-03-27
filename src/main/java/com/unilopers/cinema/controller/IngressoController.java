@@ -5,12 +5,11 @@ import com.unilopers.cinema.dto.response.IngressoDTO;
 import com.unilopers.cinema.mapper.IngressoMapper;
 import com.unilopers.cinema.model.*;
 import com.unilopers.cinema.repository.*;
+import com.unilopers.cinema.service.async.IngressoAsyncService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-
 import java.math.BigDecimal;
 import java.net.URI;
 import java.util.List;
@@ -38,6 +37,9 @@ public class IngressoController {
 
     @Autowired
     private IngressoMapper ingressoMapper;
+
+    @Autowired
+    private IngressoAsyncService ingressoAsyncService;
 
     @GetMapping
     public List<IngressoDTO> list() {
@@ -88,10 +90,14 @@ public class IngressoController {
                     sessao.get(),
                     tipoIngresso.get(),
                     dto.getNumeroAssento(),
-                    valorFinal
+                    valorFinal,
+                    "PENDENTE"
             );
 
             Ingresso saved = ingressoRepository.save(ingresso);
+
+            ingressoAsyncService.processarConfirmacaoPagamento(saved.getId());
+
             IngressoDTO responseDTO = ingressoMapper.toDTO(saved);
 
             URI location = ServletUriComponentsBuilder.fromCurrentRequest()
