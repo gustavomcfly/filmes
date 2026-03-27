@@ -5,7 +5,9 @@ import com.unilopers.cinema.dto.response.FilmeDTO;
 import com.unilopers.cinema.mapper.FilmeMapper;
 import com.unilopers.cinema.model.Filme;
 import com.unilopers.cinema.repository.FilmeRepository;
+import com.unilopers.cinema.service.async.FilmeAsyncService; // Import correto
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -23,6 +25,9 @@ public class FilmeController {
 
     @Autowired
     private FilmeMapper filmeMapper;
+
+    @Autowired
+    private FilmeAsyncService filmeAsyncService; // Injeção do serviço assíncrono
 
     @GetMapping
     public List<FilmeDTO> list() {
@@ -46,14 +51,13 @@ public class FilmeController {
             return ResponseEntity.badRequest().build();
         }
 
-        // Converte DTO para Entity
         Filme filme = filmeMapper.toEntity(dto);
-
         Filme saved = filmeRepository.save(filme);
 
-        // Converte para DTO de resposta
-        FilmeDTO responseDTO = filmeMapper.toDTO(saved);
+        // DISPARO ASSÍNCRONO: A auditoria roda em background
+        filmeAsyncService.executarAuditoria(saved); 
 
+        FilmeDTO responseDTO = filmeMapper.toDTO(saved);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
                 .buildAndExpand(saved.getId())
@@ -71,17 +75,13 @@ public class FilmeController {
 
         Filme filme = opt.get();
         filmeMapper.updateEntity(filme, dto);
-
         Filme saved = filmeRepository.save(filme);
-        FilmeDTO responseDTO = filmeMapper.toDTO(saved);
-
-        return ResponseEntity.ok(responseDTO);
+        return ResponseEntity.ok(filmeMapper.toDTO(saved));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        Optional<Filme> opt = filmeRepository.findById(id);
-        if (opt.isEmpty()) {
+        if (!filmeRepository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
         filmeRepository.deleteById(id);
